@@ -1,7 +1,7 @@
-expname = fern_2v
+expname = scene_3v
 basedir = ./logs/release
-datadir = ./data/split_allview_new/fern_2view
-dataset_type = colmap_llff
+datadir = ./data/SceneBasedOccludedRoadText/scene1
+dataset_type = llff
 factor = 4
 llffhold = 8
 N_rand = 4096

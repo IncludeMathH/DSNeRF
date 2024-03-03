@@ -1,6 +1,6 @@
-expname = fern_2v
+expname = fern_2v_train
 basedir = ./logs/release
-datadir = ./data/split_allview_new/fern_2view
+datadir = data/split_allview_new/fern_10view
 dataset_type = colmap_llff
 factor = 4
 llffhold = 8

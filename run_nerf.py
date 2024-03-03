@@ -30,7 +30,7 @@ import cv2
 # concate_time, iter_time, split_time, loss_time, backward_time = [], [], [], [], []
 
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda:2" if torch.cuda.is_available() else "cpu")
 # torch.cuda.set_device(2)
 np.random.seed(0)
 DEBUG = False
