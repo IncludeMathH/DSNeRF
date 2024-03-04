@@ -10,14 +10,8 @@ from torch import searchsorted
 
 from matplotlib import pyplot as plt
 
-
 # Misc
-img2mse = lambda x, y : torch.mean((x - y) ** 2)
-mse2psnr = lambda x : -10. * torch.log(x) / torch.log(torch.Tensor([10.]).to(device))
 to8b = lambda x : (255*np.clip(x,0,1)).astype(np.uint8)
-
-device = torch.device("cuda:2" if torch.cuda.is_available() else "cpu")
-
 
 # Positional encoding (section 5.1)
 class Embedder:
@@ -245,7 +239,7 @@ class NeRF_RGB(nn.Module):
 
 
 # Ray helpers
-def get_rays(H, W, focal, c2w):
+def get_rays(H, W, focal, c2w, device=torch.device('cpu')):
     i, j = torch.meshgrid(torch.linspace(0, W-1, W), torch.linspace(0, H-1, H))  # pytorch's meshgrid has indexing='ij'
     i = i.t()
     j = j.t()
@@ -295,7 +289,7 @@ def ndc_rays(H, W, focal, near, rays_o, rays_d):
 
 
 # Hierarchical sampling (section 5.2)
-def sample_pdf(bins, weights, N_samples, det=False, pytest=False):
+def sample_pdf(bins, weights, N_samples, det=False, pytest=False, device=torch.device('cpu')):
     # Get pdf
     weights = weights + 1e-5 # prevent nans
     pdf = weights / torch.sum(weights, -1, keepdim=True)
@@ -340,7 +334,7 @@ def sample_pdf(bins, weights, N_samples, det=False, pytest=False):
 
     return samples
 
-def raw2outputs(raw, z_vals, rays_d, raw_noise_std=0, white_bkgd=False, pytest=False):
+def raw2outputs(raw, z_vals, rays_d, raw_noise_std=0, white_bkgd=False, pytest=False, device=torch.device('cpu')):
     """Transforms model's predictions to semantically meaningful values.
     Args:
         raw: [num_rays, num_samples along ray, 4]. Prediction from model.
@@ -390,7 +384,7 @@ def raw2outputs(raw, z_vals, rays_d, raw_noise_std=0, white_bkgd=False, pytest=F
     return rgb_map, disp_map, acc_map, weights, depth_map
 
 
-def sample_sigma(rays_o, rays_d, viewdirs, network, z_vals, network_query):
+def sample_sigma(rays_o, rays_d, viewdirs, network, z_vals, network_query, device=torch.device('cpu')):
     # N_rays = rays_o.shape[0]
     # N_samples = len(z_vals)
     # z_vals = z_vals.expand([N_rays, N_samples])
@@ -401,7 +395,7 @@ def sample_sigma(rays_o, rays_d, viewdirs, network, z_vals, network_query):
     rgb = torch.sigmoid(raw[...,:3])  # [N_rays, N_samples, 3]
     sigma = F.relu(raw[...,3])
 
-    rgb_map, disp_map, acc_map, weights, depth_map = raw2outputs(raw, z_vals, rays_d)
+    rgb_map, disp_map, acc_map, weights, depth_map = raw2outputs(raw, z_vals, rays_d, device=device)
 
     return rgb, sigma, depth_map
 

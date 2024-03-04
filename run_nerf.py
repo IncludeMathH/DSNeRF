@@ -28,10 +28,6 @@ import cv2
 # import time
 
 # concate_time, iter_time, split_time, loss_time, backward_time = [], [], [], [], []
-
-
-device = torch.device("cuda:2" if torch.cuda.is_available() else "cpu")
-# torch.cuda.set_device(2)
 np.random.seed(0)
 DEBUG = False
 
@@ -106,7 +102,7 @@ def render(H, W, focal, chunk=1024*32, rays=None, c2w=None, ndc=True,
     """
     if c2w is not None:
         # special case to render full image
-        rays_o, rays_d = get_rays(H, W, focal, c2w)
+        rays_o, rays_d = get_rays(H, W, focal, c2w, device=kwargs['device'])
     else:
         # use provided ray batch
         rays_o, rays_d = rays
@@ -116,7 +112,7 @@ def render(H, W, focal, chunk=1024*32, rays=None, c2w=None, ndc=True,
         viewdirs = rays_d
         if c2w_staticcam is not None:
             # special case to visualize effect of viewdirs
-            rays_o, rays_d = get_rays(H, W, focal, c2w_staticcam)
+            rays_o, rays_d = get_rays(H, W, focal, c2w_staticcam, device=kwargs['device'])
         viewdirs = viewdirs / torch.norm(viewdirs, dim=-1, keepdim=True)
         viewdirs = torch.reshape(viewdirs, [-1,3]).float()
 
@@ -220,12 +216,18 @@ def render_test_ray(rays_o, rays_d, hwf, ndc, near, far, use_viewdirs, N_samples
 
     z_vals = z_vals.reshape([rays_o.shape[0], N_samples])
 
-    rgb, sigma, depth_maps, weights = sample_sigma(rays_o, rays_d, viewdirs, network, z_vals, network_query_fn)
+    rgb, sigma, depth_maps, weights = sample_sigma(rays_o, rays_d, viewdirs, network, z_vals, network_query_fn, device=kwargs['device'])
 
     return rgb, sigma, z_vals, depth_maps, weights
 
 
 def create_nerf(args):
+    device = args.device
+    if not device:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    else:
+        device = torch.device(device)
+
     """Instantiate NeRF's MLP model.
     """
     embed_fn, input_ch = get_embedder(args.multires, args.i_embed)
@@ -352,7 +354,8 @@ def render_rays(ray_batch,
                 raw_noise_std=0.,
                 verbose=False,
                 pytest=False,
-                sigma_loss=None):
+                sigma_loss=None,
+                device=torch.device('cpu')):
     """Volumetric rendering.
     Args:
       ray_batch: array of shape [batch_size, ...]. All information necessary
@@ -419,7 +422,7 @@ def render_rays(ray_batch,
 #     raw = run_network(pts)
     if network_fn is not None:
         raw = network_query_fn(pts, viewdirs, network_fn)
-        rgb_map, disp_map, acc_map, weights, depth_map = raw2outputs(raw, z_vals, rays_d, raw_noise_std, white_bkgd, pytest=pytest)
+        rgb_map, disp_map, acc_map, weights, depth_map = raw2outputs(raw, z_vals, rays_d, raw_noise_std, white_bkgd, pytest=pytest, device=device)
     else:
         # rgb_map, disp_map, acc_map = None, None, None
         # raw2alpha = lambda raw, dists, act_fn=F.relu: 1.-torch.exp(-act_fn(raw)*dists)
@@ -427,10 +430,10 @@ def render_rays(ray_batch,
         # alpha = network_query_fn(pts, viewdirs, network_fine.alpha_model)[...,3]
         if network_fine.alpha_model is not None:
             raw = network_query_fn(pts, viewdirs, network_fine.alpha_model)
-            rgb_map, disp_map, acc_map, weights, depth_map = raw2outputs(raw, z_vals, rays_d, raw_noise_std, white_bkgd, pytest=pytest)
+            rgb_map, disp_map, acc_map, weights, depth_map = raw2outputs(raw, z_vals, rays_d, raw_noise_std, white_bkgd, pytest=pytest, device=device)
         else:
             raw = network_query_fn(pts, viewdirs, network_fine)
-            rgb_map, disp_map, acc_map, weights, depth_map = raw2outputs(raw, z_vals, rays_d, raw_noise_std, white_bkgd, pytest=pytest)
+            rgb_map, disp_map, acc_map, weights, depth_map = raw2outputs(raw, z_vals, rays_d, raw_noise_std, white_bkgd, pytest=pytest, device=device)
 
 
     if N_importance > 0:
@@ -438,7 +441,7 @@ def render_rays(ray_batch,
         rgb_map_0, disp_map_0, acc_map_0 = rgb_map, disp_map, acc_map
 
         z_vals_mid = .5 * (z_vals[...,1:] + z_vals[...,:-1])
-        z_samples = sample_pdf(z_vals_mid, weights[...,1:-1], N_importance, det=(perturb==0.), pytest=pytest)
+        z_samples = sample_pdf(z_vals_mid, weights[...,1:-1], N_importance, det=(perturb==0.), pytest=pytest, device=device)
         z_samples = z_samples.detach()
 
         z_vals, _ = torch.sort(torch.cat([z_vals, z_samples], -1), -1)
@@ -448,7 +451,7 @@ def render_rays(ray_batch,
 #         raw = run_network(pts, fn=run_fn)
         raw = network_query_fn(pts, viewdirs, run_fn)
 
-        rgb_map, disp_map, acc_map, weights, depth_map = raw2outputs(raw, z_vals, rays_d, raw_noise_std, white_bkgd, pytest=pytest)
+        rgb_map, disp_map, acc_map, weights, depth_map = raw2outputs(raw, z_vals, rays_d, raw_noise_std, white_bkgd, pytest=pytest, device=device)
 
     ret = {'rgb_map' : rgb_map, 'disp_map' : disp_map, 'acc_map' : acc_map, 'depth_map' : depth_map}
     if retraw:
@@ -476,6 +479,7 @@ def config_parser():
     parser = configargparse.ArgumentParser()
     parser.add_argument('--config', is_config_file=True, 
                         help='config file path')
+    parser.add_argument("--device", type=str, default=None, help='Device used for train and rendering')
     parser.add_argument("--expname", type=str, 
                         help='experiment name')
     parser.add_argument("--basedir", type=str, default='./logs/', 
@@ -627,6 +631,14 @@ def train():
 
     parser = config_parser()
     args = parser.parse_args()
+    device = args.device
+    if not device:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    else:
+        device = torch.device(device)
+
+    img2mse = lambda x, y : torch.mean((x - y) ** 2)
+    mse2psnr = lambda x : -10. * torch.log(x) / torch.log(torch.Tensor([10.]).to(device))
 
     if args.dataset_type == 'colmap_llff':
         train_imgs, test_imgs, train_poses, test_poses, render_poses, depth_gts, bds = load_colmap_llff(args.datadir)
@@ -749,6 +761,7 @@ def train():
     bds_dict = {
         'near' : near,
         'far' : far,
+        'device': device,
     }
     render_kwargs_train.update(bds_dict)
     render_kwargs_test.update(bds_dict)
@@ -920,7 +933,7 @@ def train():
             pose = poses[img_i, :3,:4]
 
             if N_rand is not None:
-                rays_o, rays_d = get_rays(H, W, focal, torch.Tensor(pose))  # (H, W, 3), (H, W, 3)
+                rays_o, rays_d = get_rays(H, W, focal, torch.Tensor(pose), device=device)  # (H, W, 3), (H, W, 3)
 
                 if i < args.precrop_iters:
                     dH = int(H//2 * args.precrop_frac)
@@ -1077,7 +1090,7 @@ def train():
 
             filenames = [os.path.join(testsavedir, '{:03d}.png'.format(k)) for k in range(len(i_test))]
 
-            test_loss = img2mse(torch.Tensor(rgbs), images[i_test])
+            test_loss = img2mse(torch.Tensor(rgbs).to(device), images[i_test])
             test_psnr = mse2psnr(test_loss)
 
     
