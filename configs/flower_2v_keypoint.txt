@@ -1,5 +1,5 @@
-expname = flower_2v
-basedir = ./logs/release
+expname = flower_2v_keypoint
+basedir = ./logs/experiment
 datadir = ./data/split_allview_new/flower_2view
 dataset_type = colmap_llff
 factor = 4
@@ -16,3 +16,5 @@ depth_lambda = 0.1
 i_testset = 5000
 i_video = 10000
 N_iters = 50000
+use_depth_anything = True
+depth_anything = data/split_allview_new/flower_2view/depth_anything_train.npy

@@ -235,7 +235,7 @@ def create_nerf(args):
     input_ch_views = 0
     embeddirs_fn = None
     if args.use_viewdirs:
-        embeddirs_fn, input_ch_views = get_embedder(args.multires_views, args.i_embed)
+        embeddirs_fn, input_ch_views = get_embedder(args.multires_views, args.i_embed)      # 对\theta, \phi进行编码
     output_ch = 5 if args.N_importance > 0 else 4
     skips = [4]
     if args.alpha_model_path is None:
@@ -272,10 +272,12 @@ def create_nerf(args):
                             input_ch_views=input_ch_views, use_viewdirs=args.use_viewdirs, alpha_model=alpha_model).to(device)
         grad_vars += list(model_fine.parameters())
 
+    # ==============================渲染核心函数==============================
     network_query_fn = lambda inputs, viewdirs, network_fn : run_network(inputs, viewdirs, network_fn,
                                                                 embed_fn=embed_fn,
                                                                 embeddirs_fn=embeddirs_fn,
                                                                 netchunk=args.netchunk)
+    # ==============================渲染核心函数==============================
 
     # Create optimizer
     optimizer = torch.optim.Adam(params=grad_vars, lr=args.lrate, betas=(0.9, 0.999))
@@ -392,7 +394,7 @@ def render_rays(ray_batch,
     bounds = torch.reshape(ray_batch[...,6:8], [-1,1,2])
     near, far = bounds[...,0], bounds[...,1] # [-1,1]
 
-    t_vals = torch.linspace(0., 1., steps=N_samples).to(device)
+    t_vals = torch.linspace(0., 1., steps=N_samples).to(device)      # 采样点
     if not lindisp:
         z_vals = near * (1.-t_vals) + far * (t_vals)
     else:
@@ -416,7 +418,7 @@ def render_rays(ray_batch,
 
         z_vals = lower + (upper - lower) * t_rand
 
-    pts = rays_o[...,None,:] + rays_d[...,None,:] * z_vals[...,:,None] # [N_rays, N_samples, 3]
+    pts = rays_o[...,None,:] + rays_d[...,None,:] * z_vals[...,:,None] # [N_rays, N_samples, 3]     o + t * d
 
 
 #     raw = run_network(pts)
@@ -624,6 +626,11 @@ def config_parser():
                     help="normalize depth before calculating loss")
     parser.add_argument("--depth_rays_prop", type=float, default=0.5,
                         help="Proportion of depth rays.")
+    parser.add_argument("--use_depth_anything", action='store_true',
+                        help='whether to use depth supervision from depth-anything')
+    parser.add_argument("--depth_anything", type=str, default=None)
+    parser.add_argument("--dense_depth", action='store_true',
+                    help='whether to use dense depth supervision')
     return parser
 
 
@@ -826,15 +833,17 @@ def train():
         # For random ray batching
         print('get rays')
         rays = np.stack([get_rays_np(H, W, focal, p) for p in poses[:,:3,:4]], 0) # [N, ro+rd, H, W, 3]
-        if args.debug:
-            print('rays.shape:', rays.shape)
         print('done, concats')
         rays_rgb = np.concatenate([rays, images[:,None]], 1) # [N, ro+rd+rgb, H, W, 3]
-        if args.debug:
-            print('rays_rgb.shape:', rays_rgb.shape)
         rays_rgb = np.transpose(rays_rgb, [0,2,3,1,4]) # [N, H, W, ro+rd+rgb, 3]
         rays_rgb = np.stack([rays_rgb[i] for i in i_train], 0) # train images only
-        rays_rgb = np.reshape(rays_rgb, [-1,3,3]) # [(N-1)*H*W, ro+rd+rgb, 3]
+        if args.dense_depth:
+            rays_depth = np.stack([np.repeat(np.load(args.depth_anything, allow_pickle=True)[i]['depth_map'][..., None], 3, axis=2) for i in i_train], 0)  # (num_train, H, W, 3)
+            rays_rgb = np.concatenate([rays_rgb, rays_depth[:, :, :, None]], 3)
+            rays_rgb = np.reshape(rays_rgb, [-1, 4, 3]) # [num_train*H*W, ro+rd+rgb+depth, 3]
+        # TODO: depth map可以直接保存训练集和测试集的伪标签，读取时按顺序读取即可。另外需要支持其它类型的数据集
+        else:
+            rays_rgb = np.reshape(rays_rgb, [-1,3,3]) # [(N-1)*H*W, ro+rd+rgb, 3]
         rays_rgb = rays_rgb.astype(np.float32)
         print('shuffle rays')
         np.random.shuffle(rays_rgb)
@@ -844,12 +853,15 @@ def train():
             print('get depth rays')
             rays_depth_list = []
             for i in i_train:
-                rays_depth = np.stack(get_rays_by_coord_np(H, W, focal, poses[i,:3,:4], depth_gts[i]['coord']), axis=0) # 2 x N x 3
+                rays_depth = np.stack(get_rays_by_coord_np(H, W, focal, poses[i,:3,:4], depth_gts[i]['coord']), axis=0) # (ro + rd, num_points, 3)
                 # print(rays_depth.shape)
                 rays_depth = np.transpose(rays_depth, [1,0,2])
-                depth_value = np.repeat(depth_gts[i]['depth'][:,None,None], 3, axis=2) # N x 1 x 3
-                weights = np.repeat(depth_gts[i]['error'][:,None,None], 3, axis=2) # N x 1 x 3
-                rays_depth = np.concatenate([rays_depth, depth_value, weights], axis=1) # N x 4 x 3
+                if args.use_depth_anything:
+                    depth_value = np.repeat(np.load(args.depth_anything, allow_pickle=True)[i]['depth'][:,None,None], 3, axis=2)
+                else:
+                    depth_value = np.repeat(depth_gts[i]['depth'][:,None,None], 3, axis=2) # num_points x 1 x 3
+                weights = np.repeat(depth_gts[i]['error'][:,None,None], 3, axis=2) # num_points x 1 x 3
+                rays_depth = np.concatenate([rays_depth, depth_value, weights], axis=1) # (num_points, ro + rd + value + weights, 3)
                 rays_depth_list.append(rays_depth)
 
             rays_depth = np.concatenate(rays_depth_list, axis=0)
@@ -866,14 +878,10 @@ def train():
         print('done')
         i_batch = 0
 
-    if args.debug:
-        return
     # Move training data to GPU
     images = torch.Tensor(images).to(device)
     poses = torch.Tensor(poses).to(device)
     if use_batching:
-        # rays_rgb = torch.Tensor(rays_rgb).to(device)
-        # rays_depth = torch.Tensor(rays_depth).to(device) if rays_depth is not None else None
         raysRGB_iter = iter(DataLoader(RayDataset(rays_rgb), batch_size = N_rgb, shuffle=True, num_workers=0))
         raysDepth_iter = iter(DataLoader(RayDataset(rays_depth), batch_size = N_depth, shuffle=True, num_workers=0)) if rays_depth is not None else None
 
@@ -900,7 +908,7 @@ def train():
             except StopIteration:
                 raysRGB_iter = iter(DataLoader(RayDataset(rays_rgb), batch_size = N_rgb, shuffle=True, num_workers=0))
                 batch = next(raysRGB_iter).to(device)
-            batch = torch.transpose(batch, 0, 1)
+            batch = torch.transpose(batch, 0, 1)           # (bs, ro+rd+rgb, 3) -> (ro+rd+rgb, bs, 3)  or (bs, ro + rd + rgb + depth, 3) -> (ro + rd + rgb + depth, bs, 3)
             batch_rays, target_s = batch[:2], batch[2]
 
             if args.colmap_depth:
@@ -910,23 +918,14 @@ def train():
                 except StopIteration:
                     raysDepth_iter = iter(DataLoader(RayDataset(rays_depth), batch_size = N_depth, shuffle=True, num_workers=0))
                     batch_depth = next(raysDepth_iter).to(device)
-                batch_depth = torch.transpose(batch_depth, 0, 1)
+                batch_depth = torch.transpose(batch_depth, 0, 1)  # (bs, ro+rd+value+weights, 3) -> (ro+rd+value+weights, bs, 3)
                 batch_rays_depth = batch_depth[:2] # 2 x B x 3
                 target_depth = batch_depth[2,:,0] # B
                 ray_weights = batch_depth[3,:,0]
-
-            # i_batch += N_rand
-            # if i_batch >= rays_rgb.shape[0] or (args.colmap_depth and i_batch >= rays_depth.shape[0]):
-            #     print("Shuffle data after an epoch!")
-            #     rand_idx = torch.randperm(rays_rgb.shape[0])
-            #     rays_rgb = rays_rgb[rand_idx]
-            #     if args.colmap_depth:
-            #         rand_idx = torch.randperm(rays_depth.shape[0])
-            #         rays_depth = rays_depth[rand_idx]
-            #     i_batch = 0
-
-
+            elif args.dense_depth:
+                target_depth = batch[3, :, 0]         # (bs, )
         else:
+            # TODO: update this part
             # Random from one image
             img_i = np.random.choice(i_train)
             target = images[img_i]
@@ -972,9 +971,6 @@ def train():
         # timer_iter = time.perf_counter()
 
         if args.colmap_depth and not args.depth_with_rgb:
-            # _, _, _, depth_col, extras_col = render(H, W, focal, chunk=args.chunk, rays=batch_rays_depth,
-            #                                     verbose=i < 10, retraw=True, depths=target_depth,
-            #                                     **render_kwargs_train)
             rgb = rgb[:N_batch, :]
             disp = disp[:N_batch]
             acc = acc[:N_batch]
@@ -982,7 +978,7 @@ def train():
             extras = {x:extras[x][:N_batch] for x in extras}
             extras_col = {x:extras[x][N_batch:] for x in extras}
 
-        elif args.colmap_depth and args.depth_with_rgb:
+        elif (args.colmap_depth and args.depth_with_rgb) or args.dense_depth:
             depth_col = depth
 
         # timer_split = time.perf_counter()
@@ -1000,9 +996,11 @@ def train():
             elif args.relative_loss:
                 depth_loss = torch.mean(((depth_col - target_depth) / target_depth)**2)
             else:
+                # default to use this loss
                 depth_loss = img2mse(depth_col, target_depth)
         sigma_loss = 0
         if args.sigma_loss:
+            # default to be False
             sigma_loss = extras_col['sigma_loss'].mean()
             # print(sigma_loss)
         trans = extras['raw'][...,-1]

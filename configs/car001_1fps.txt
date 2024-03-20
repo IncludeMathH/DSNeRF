@@ -1,7 +1,7 @@
-expname = flower_2v
+expname = car001_1fps
 basedir = ./logs/release
-datadir = ./data/split_allview_new/flower_2view
-dataset_type = colmap_llff
+datadir = data/scenes/monocular/car001_1fps
+dataset_type = llff
 factor = 4
 llffhold = 8
 N_rand = 4096
