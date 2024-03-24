@@ -90,12 +90,16 @@ class NeRF(nn.Module):
         
         if use_viewdirs:
             self.feature_linear = nn.Linear(W, W)
-            self.alpha_linear = nn.Linear(W, 1)
-            self.rgb_linear = nn.Linear(W//2, 3)
+            self.alpha_linear = nn.Linear(W, 1)      # 透明度,一个值
+            self.rgb_linear = nn.Linear(W//2, 3)     # rgb颜色，三个值
         else:
             self.output_linear = nn.Linear(W, output_ch)
 
     def forward(self, x):
+        """
+        Args:
+            x: (bs * n_points, 90). 63 for points, 27 for viewdirs.
+        """
         input_pts, input_views = torch.split(x, [self.input_ch, self.input_ch_views], dim=-1)
         h = input_pts
         for i, l in enumerate(self.pts_linears):
@@ -104,14 +108,15 @@ class NeRF(nn.Module):
             if i in self.skips:
                 h = torch.cat([input_pts, h], -1)
 
+        # h: (bs * n_points, W)
         if self.use_viewdirs:
-            alpha = self.alpha_linear(h)
+            alpha = self.alpha_linear(h)        # alpha只与xyz有关
             feature = self.feature_linear(h)
-            h = torch.cat([feature, input_views], -1)
+            h = torch.cat([feature, input_views], -1)      # rgb与xyz和direct都有关
         
             for i, l in enumerate(self.views_linears):
                 h = self.views_linears[i](h)
-                h = F.relu(h)
+                h = F.relu(h)   #  (bs * n_points, W//2)
 
             rgb = self.rgb_linear(h)
             outputs = torch.cat([rgb, alpha], -1)
@@ -290,21 +295,30 @@ def ndc_rays(H, W, focal, near, rays_o, rays_d):
 
 # Hierarchical sampling (section 5.2)
 def sample_pdf(bins, weights, N_samples, det=False, pytest=False, device=torch.device('cpu')):
+    """
+    Args:
+        bins [torch.Tensor]: (bs, 63), bs=4096
+        weights [torch.Tensor]: (bs, 62)
+        N_samples [int]: 128
+        det [bool]: False by default
+        pytest [bool]: False by default
+    """
     # Get pdf
     weights = weights + 1e-5 # prevent nans
     pdf = weights / torch.sum(weights, -1, keepdim=True)
     cdf = torch.cumsum(pdf, -1)
-    cdf = torch.cat([torch.zeros_like(cdf[...,:1]), cdf], -1)  # (batch, len(bins))
+    cdf = torch.cat([torch.zeros_like(cdf[...,:1]), cdf], -1)  # (bs, len(bins))
 
     # Take uniform samples
     if det:
         u = torch.linspace(0., 1., steps=N_samples)
         u = u.expand(list(cdf.shape[:-1]) + [N_samples])
     else:
-        u = torch.rand(list(cdf.shape[:-1]) + [N_samples])
+        u = torch.rand(list(cdf.shape[:-1]) + [N_samples])     # 也在0到1之间, (bs, N_samples)
 
     # Pytest, overwrite u with numpy's fixed random numbers
     if pytest:
+        # 如果 pytest 为真，那么 u 将被固定的随机数覆盖，这对于测试是有用的，因为它可以确保每次运行的结果都是一样的。
         np.random.seed(0)
         new_shape = list(cdf.shape[:-1]) + [N_samples]
         if det:
@@ -316,19 +330,19 @@ def sample_pdf(bins, weights, N_samples, det=False, pytest=False, device=torch.d
 
     # Invert CDF
     u = u.contiguous().to(device)
-    inds = searchsorted(cdf, u, right=True)
-    below = torch.max(torch.zeros_like(inds-1), inds-1)
-    above = torch.min((cdf.shape[-1]-1) * torch.ones_like(inds), inds)
-    inds_g = torch.stack([below, above], -1)  # (batch, N_samples, 2)
+    inds = searchsorted(cdf, u, right=True)         # 这个函数是找到u在离散cdf中对应的右区间点
+    below = torch.max(torch.zeros_like(inds-1), inds-1)  # 找到左区间点，以0为最小值
+    above = torch.min((cdf.shape[-1]-1) * torch.ones_like(inds), inds)  # 找到右区间点，以0为最小值
+    inds_g = torch.stack([below, above], -1)  # (bs, N_samples, 2)
 
     # cdf_g = tf.gather(cdf, inds_g, axis=-1, batch_dims=len(inds_g.shape)-2)
     # bins_g = tf.gather(bins, inds_g, axis=-1, batch_dims=len(inds_g.shape)-2)
-    matched_shape = [inds_g.shape[0], inds_g.shape[1], cdf.shape[-1]]
-    cdf_g = torch.gather(cdf.unsqueeze(1).expand(matched_shape), 2, inds_g)
-    bins_g = torch.gather(bins.unsqueeze(1).expand(matched_shape), 2, inds_g)
+    matched_shape = [inds_g.shape[0], inds_g.shape[1], cdf.shape[-1]]    # (bs, N_samples, len(bins))
+    cdf_g = torch.gather(cdf.unsqueeze(1).expand(matched_shape), 2, inds_g)     # (bs, len(bins)) -> (bs, 1, len(bins)) -> (bs, N_samples, len(bins)) -> (bs, N_samples, 2)
+    bins_g = torch.gather(bins.unsqueeze(1).expand(matched_shape), 2, inds_g)   # (bs, 63) -> (bs, 1, 63) -> (bs, N_samples, 63) -> (bs, N_samples, 2)
 
     denom = (cdf_g[...,1]-cdf_g[...,0])
-    denom = torch.where(denom<1e-5, torch.ones_like(denom), denom)
+    denom = torch.where(denom<1e-5, torch.ones_like(denom), denom)     # 小于1e-5的设为1，否则为该区间对应的概率值
     t = (u-cdf_g[...,0])/denom
     samples = bins_g[...,0] + t * (bins_g[...,1]-bins_g[...,0])
 
@@ -366,8 +380,10 @@ def raw2outputs(raw, z_vals, rays_d, raw_noise_std=0, white_bkgd=False, pytest=F
             noise = torch.Tensor(noise)
         noise = noise.to(device)
 
+    # 计算公式3 [bs, 64]
     alpha = raw2alpha(raw[...,3] + noise, dists)  # [N_rays, N_samples]
     # weights = alpha * tf.math.cumprod(1.-alpha + 1e-10, -1, exclusive=True)
+    # 后面这部分就是Ti，前面是alpha，这个就是论文上的那个权重w [bs,64]
     weights = alpha * torch.cumprod(torch.cat([torch.ones((alpha.shape[0], 1)).to(device), 1.-alpha + 1e-10], -1), -1)[:, :-1]
     rgb_map = torch.sum(weights[...,None] * rgb, -2)  # [N_rays, 3]
 

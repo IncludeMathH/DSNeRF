@@ -968,6 +968,7 @@ def train():
         rgb, disp, acc, depth, extras = render(H, W, focal, chunk=args.chunk, rays=batch_rays,
                                                 verbose=i < 10, retraw=True,
                                                 **render_kwargs_train)
+        # (bs, 3), (bs, ), (bs, ), (bs, ), (bs, 3)
         # timer_iter = time.perf_counter()
 
         if args.colmap_depth and not args.depth_with_rgb:
