@@ -42,7 +42,7 @@ def batchify(fn, chunk):
     return ret
 
 
-def run_network(inputs, viewdirs, fn, embed_fn, embeddirs_fn, netchunk=1024*64):
+def run_network(inputs, viewdirs, fn, embed_fn, embeddirs_fn, netchunk=1024*64, use_mamba=False):
     """Prepares inputs and applies network 'fn'.
     """
     inputs_flat = torch.reshape(inputs, [-1, inputs.shape[-1]])
@@ -54,8 +54,12 @@ def run_network(inputs, viewdirs, fn, embed_fn, embeddirs_fn, netchunk=1024*64):
         embedded_dirs = embeddirs_fn(input_dirs_flat)
         embedded = torch.cat([embedded, embedded_dirs], -1)
 
-    outputs_flat = batchify(fn, netchunk)(embedded)
-    outputs = torch.reshape(outputs_flat, list(inputs.shape[:-1]) + [outputs_flat.shape[-1]])
+    if use_mamba:
+        mamba_input = torch.reshape(embedded, list(inputs.shape[:-1]) + [embedded.shape[-1]])
+        outputs = batchify(fn, netchunk)(mamba_input)
+    else:
+        outputs_flat = batchify(fn, netchunk)(embedded)
+        outputs = torch.reshape(outputs_flat, list(inputs.shape[:-1]) + [outputs_flat.shape[-1]])
     return outputs
 
 
@@ -239,9 +243,16 @@ def create_nerf(args):
     output_ch = 5 if args.N_importance > 0 else 4
     skips = [4]
     if args.alpha_model_path is None:
-        model = NeRF(D=args.netdepth, W=args.netwidth,
-                    input_ch=input_ch, output_ch=output_ch, skips=skips,
-                    input_ch_views=input_ch_views, use_viewdirs=args.use_viewdirs).to(device)
+        if args.use_mamba:
+            model = NeRF_mamba(D=args.netdepth, W=args.netwidth,
+                        input_ch=input_ch, output_ch=output_ch,
+                        input_ch_views=input_ch_views, use_viewdirs=args.use_viewdirs,
+                        device=device,
+                        ).to(device)
+        else:
+            model = NeRF(D=args.netdepth, W=args.netwidth,
+                        input_ch=input_ch, output_ch=output_ch, skips=skips,
+                        input_ch_views=input_ch_views, use_viewdirs=args.use_viewdirs).to(device)
         grad_vars = list(model.parameters())
     else:
         alpha_model = NeRF(D=args.netdepth_fine, W=args.netwidth_fine,
@@ -263,9 +274,16 @@ def create_nerf(args):
     model_fine = None
     if args.N_importance > 0:
         if args.alpha_model_path is None:
-            model_fine = NeRF(D=args.netdepth_fine, W=args.netwidth_fine,
-                            input_ch=input_ch, output_ch=output_ch, skips=skips,
-                            input_ch_views=input_ch_views, use_viewdirs=args.use_viewdirs).to(device)
+            if args.use_mamba:
+                model_fine = NeRF_mamba(D=args.netdepth_fine, W=args.netwidth_fine,
+                            input_ch=input_ch, output_ch=output_ch,
+                            input_ch_views=input_ch_views, use_viewdirs=args.use_viewdirs,
+                            device=device,
+                            ).to(device)
+            else:
+                model_fine = NeRF(D=args.netdepth_fine, W=args.netwidth_fine,
+                                input_ch=input_ch, output_ch=output_ch, skips=skips,
+                                input_ch_views=input_ch_views, use_viewdirs=args.use_viewdirs).to(device)
         else:
             model_fine = NeRF_RGB(D=args.netdepth_fine, W=args.netwidth_fine,
                             input_ch=input_ch, output_ch=output_ch, skips=skips,
@@ -276,7 +294,8 @@ def create_nerf(args):
     network_query_fn = lambda inputs, viewdirs, network_fn : run_network(inputs, viewdirs, network_fn,
                                                                 embed_fn=embed_fn,
                                                                 embeddirs_fn=embeddirs_fn,
-                                                                netchunk=args.netchunk)
+                                                                netchunk=args.netchunk,
+                                                                use_mamba=args.use_mamba)
     # ==============================渲染核心函数==============================
 
     # Create optimizer
@@ -631,6 +650,7 @@ def config_parser():
     parser.add_argument("--depth_anything", type=str, default=None)
     parser.add_argument("--dense_depth", action='store_true',
                     help='whether to use dense depth supervision')
+    parser.add_argument("--use_mamba", action='store_true',)
     return parser
 
 
