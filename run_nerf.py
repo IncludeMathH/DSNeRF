@@ -25,6 +25,7 @@ from torch.utils.data import DataLoader
 
 from utils.generate_renderpath import generate_renderpath
 import cv2
+import wandb
 # import time
 
 # concate_time, iter_time, split_time, loss_time, backward_time = [], [], [], [], []
@@ -911,6 +912,7 @@ def train():
     print('TRAIN views are', i_train)
     print('TEST views are', i_test)
     print('VAL views are', i_val)
+    wandb.init(project="dsnerf", name=expname)
 
     # Summary writers
     # writer = SummaryWriter(os.path.join(basedir, 'summaries', expname))
@@ -1115,6 +1117,21 @@ def train():
     
         if i%args.i_print==0:
             tqdm.write(f"[TRAIN] Iter: {i} Loss: {loss.item()}  PSNR: {psnr.item()}")
+            info = {"loss": loss.item(), "psnr": psnr.item()}
+            if args.depth_loss:
+                if args.weighted_loss:
+                    if not args.normalize_depth:
+                        info['weighted_No-Norm_loss'] = depth_loss.item()
+                    else:
+                        info['weighted_Norm_loss'] = depth_loss.item()
+                elif args.relative_loss:
+                    info['relative_loss'] = depth_loss.item()
+                else:
+                    info['depth_loss'] = depth_loss.item()
+            if args.sigma_loss:
+                info['sigma_loss'] = sigma_loss.item()
+            wandb.log(info, step=i)
+
         """
             print(expname, i, psnr.numpy(), loss.numpy(), global_step.numpy())
             print('iter time {:.05f}'.format(dt))
@@ -1159,6 +1176,7 @@ def train():
 
         global_step += 1
 
+    wandb.finish()
 
 if __name__=='__main__':
     # torch.set_default_tensor_type('torch.cuda.FloatTensor')
