@@ -328,15 +328,15 @@ class NeRF_mamba(nn.Module):
 
         if not self.fused_add_norm:
             residual = (h + residual) if residual is not None else h
-            h = self.norm_alpha(residual.to(dtype=self.norm_f.weight.dtype))
+            h = self.norm_alpha(residual.to(dtype=self.norm_alpha.weight.dtype))
         else:
             # Set prenorm=False here since we don't need the residual
             fused_add_norm_fn = rms_norm_fn if isinstance(self.norm_alpha, RMSNorm) else layer_norm_fn
             h = fused_add_norm_fn(
                 h,
-                self.norm_f.weight,
-                self.norm_f.bias,
-                eps=self.norm_f.eps,
+                self.norm_alpha.weight,
+                self.norm_alpha.bias,
+                eps=self.norm_alpha.eps,
                 residual=residual,
                 prenorm=False,
                 residual_in_fp32=self.residual_in_fp32,
@@ -353,15 +353,15 @@ class NeRF_mamba(nn.Module):
 
             if not self.fused_add_norm:
                 residual = (h + residual) if residual is not None else h
-                h = self.norm_alpha(residual.to(dtype=self.norm_f.weight.dtype))
+                h = self.norm_rgb(residual.to(dtype=self.norm_rgb.weight.dtype))
             else:
                 # Set prenorm=False here since we don't need the residual
                 fused_add_norm_fn = rms_norm_fn if isinstance(self.norm_alpha, RMSNorm) else layer_norm_fn
                 h = fused_add_norm_fn(
                     h,
-                    self.norm_f.weight,
-                    self.norm_f.bias,
-                    eps=self.norm_f.eps,
+                    self.norm_rgb.weight,
+                    self.norm_rgb.bias,
+                    eps=self.norm_rgb.eps,
                     residual=residual,
                     prenorm=False,
                     residual_in_fp32=self.residual_in_fp32,

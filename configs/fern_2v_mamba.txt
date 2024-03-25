@@ -17,3 +17,5 @@ i_testset = 5000
 i_video = 10000
 N_iters = 50000
 use_mamba = True
+netdepth = 4
+netdepth_fine = 4
