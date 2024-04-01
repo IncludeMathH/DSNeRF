@@ -248,7 +248,7 @@ def create_nerf(args):
             model = NeRF_mamba(D=args.netdepth, W=args.netwidth,
                         input_ch=input_ch, output_ch=output_ch,
                         input_ch_views=input_ch_views, use_viewdirs=args.use_viewdirs,
-                        device=device,
+                        device=device
                         ).to(device)
         else:
             model = NeRF(D=args.netdepth, W=args.netwidth,

@@ -14,8 +14,8 @@ import eval_utils
 
 FLAGS = flags.FLAGS
 
-flags.DEFINE_string('generated_views', '', 'Directory to generated views.')
-flags.DEFINE_string('ground_truth_views', '', 'Directory to ground truth views.')
+flags.DEFINE_string('generated_views', 'logs/mambav2_woFineNet/generated_views', 'Directory to generated views.')
+flags.DEFINE_string('ground_truth_views', 'data/tmp_2v_gt', 'Directory to ground truth views.')
 
 def main(argv):
   if len(argv) > 1:

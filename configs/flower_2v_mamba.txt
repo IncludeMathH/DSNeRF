@@ -1,6 +1,6 @@
-expname = fern_2v_mamba
+expname = flower_2v_mamba
 basedir = ./logs/experiment
-datadir = ./data/split_allview_new/fern_2view
+datadir = ./data/split_allview_new/flower_2view
 dataset_type = colmap_llff
 factor = 4
 llffhold = 8
