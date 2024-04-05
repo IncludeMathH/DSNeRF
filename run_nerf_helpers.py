@@ -272,7 +272,7 @@ class NeRF_mamba(nn.Module):
             [
                 create_block(
                     d_model=W,
-                    ssm_cfg=ssm_cfg,
+                    ssm_cfg={'expand': 1},
                     norm_epsilon=norm_epsilon,
                     rms_norm=rms_norm,
                     residual_in_fp32=residual_in_fp32,
@@ -280,7 +280,7 @@ class NeRF_mamba(nn.Module):
                     layer_idx=i,
                     **factory_kwargs,
                 )
-                for i in range(D-1)
+                for i in range(1)
             ])
         
         self.norm_alpha = (nn.LayerNorm if not rms_norm else RMSNorm)(
@@ -292,7 +292,7 @@ class NeRF_mamba(nn.Module):
             [
                 create_block(
                     d_model=input_ch_views + W,
-                    ssm_cfg=ssm_cfg,
+                    ssm_cfg={'expand': 1},
                     norm_epsilon=norm_epsilon,
                     rms_norm=rms_norm,
                     residual_in_fp32=residual_in_fp32,

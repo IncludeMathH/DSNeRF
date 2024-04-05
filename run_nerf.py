@@ -652,6 +652,7 @@ def config_parser():
     parser.add_argument("--dense_depth", action='store_true',
                     help='whether to use dense depth supervision')
     parser.add_argument("--use_mamba", action='store_true',)
+    parser.add_argument("--use_wandb", action='store_true',)
     return parser
 
 
@@ -912,7 +913,8 @@ def train():
     print('TRAIN views are', i_train)
     print('TEST views are', i_test)
     print('VAL views are', i_val)
-    wandb.init(project="dsnerf", name=expname)
+    if args.use_wandb:
+        wandb.init(project="dsnerf", name=expname)
 
     # Summary writers
     # writer = SummaryWriter(os.path.join(basedir, 'summaries', expname))
@@ -1117,20 +1119,21 @@ def train():
     
         if i%args.i_print==0:
             tqdm.write(f"[TRAIN] Iter: {i} Loss: {loss.item()}  PSNR: {psnr.item()}")
-            info = {"loss": loss.item(), "psnr": psnr.item()}
-            if args.depth_loss:
-                if args.weighted_loss:
-                    if not args.normalize_depth:
-                        info['weighted_No-Norm_loss'] = depth_loss.item()
+            if args.use_wandb:
+                info = {"loss": loss.item(), "psnr": psnr.item()}
+                if args.depth_loss:
+                    if args.weighted_loss:
+                        if not args.normalize_depth:
+                            info['weighted_No-Norm_loss'] = depth_loss.item()
+                        else:
+                            info['weighted_Norm_loss'] = depth_loss.item()
+                    elif args.relative_loss:
+                        info['relative_loss'] = depth_loss.item()
                     else:
-                        info['weighted_Norm_loss'] = depth_loss.item()
-                elif args.relative_loss:
-                    info['relative_loss'] = depth_loss.item()
-                else:
-                    info['depth_loss'] = depth_loss.item()
-            if args.sigma_loss:
-                info['sigma_loss'] = sigma_loss.item()
-            wandb.log(info, step=i)
+                        info['depth_loss'] = depth_loss.item()
+                if args.sigma_loss:
+                    info['sigma_loss'] = sigma_loss.item()
+                wandb.log(info, step=i)
 
         """
             print(expname, i, psnr.numpy(), loss.numpy(), global_step.numpy())
@@ -1176,7 +1179,8 @@ def train():
 
         global_step += 1
 
-    wandb.finish()
+    if args.use_wandb:
+        wandb.finish()
 
 if __name__=='__main__':
     # torch.set_default_tensor_type('torch.cuda.FloatTensor')
