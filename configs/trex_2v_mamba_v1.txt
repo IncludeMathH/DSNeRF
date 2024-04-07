@@ -1,5 +1,5 @@
-expname = trex_2v
-basedir = ./logs/release
+expname = trex_2v_mamba_v1
+basedir = ./logs/baseline
 datadir = ./data/split_allview_new/trex_2view
 dataset_type = colmap_llff
 factor = 4

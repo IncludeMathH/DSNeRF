@@ -25,12 +25,19 @@ Then:
 ```powershell
 git clone https://github.com/Dao-AILab/causal-conv1d.git
 cd causal_conv1d
-git checkout v1.2.0  # this is the highest compatible version allowed by Mamba
+git checkout v1.2.0.post2
+# edit setup.py to add the lines here:
+    cc_flag.append("-gencode")
+    cc_flag.append("arch=compute_60,code=sm_60")
 CAUSAL_CONV1D_FORCE_BUILD=TRUE pip install .
 ```
 
 ```powershell
-wget https://github.com/Dao-AILab/causal-conv1d/releases/download/v1.2.0.post1/causal_conv1d-1.2.0.post1+cu118torch2.0cxx11abiFALSE-cp310-cp310-linux_x86_64.whl
-
-wget https://github.com/state-spaces/mamba/releases/download/v1.2.0.post1/mamba_ssm-1.2.0.post1+cu118torch2.0cxx11abiFALSE-cp310-cp310-linux_x86_64.whl
+git clone git@github.com:state-spaces/mamba.git
+cd mamba
+git checkout v1.2.0.post1
+# edit setup.py to add the lines here:
+    cc_flag.append("-gencode")
+    cc_flag.append("arch=compute_60,code=sm_60")
+MAMBA_FORCE_BUILD=TRUE pip install .
 ```
