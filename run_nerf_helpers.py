@@ -379,6 +379,97 @@ class NeRF_mamba(nn.Module):
         return 
 
 
+class NeRF_CA_mamba(nn.Module):
+    def __init__(self, D=8, W=256, input_ch=3, input_ch_views=3, output_ch=4, use_viewdirs=False, ssm_cfg=None, norm_epsilon=1e-5, rms_norm=False, residual_in_fp32=False, 
+                 fused_add_norm=False, device=None, dtype=None):
+        """ 
+        """
+        factory_kwargs = {"device": device, "dtype": dtype}
+        super(NeRF_CA_mamba, self).__init__()
+        self.D = D
+        self.W = W
+        self.input_ch = input_ch
+        self.input_ch_views = input_ch_views
+        self.use_viewdirs = use_viewdirs
+
+        self.residual_in_fp32 = residual_in_fp32
+        self.fused_add_norm = fused_add_norm
+
+        self.pts_embed = nn.Linear(input_ch, W)
+        self.view_embed = nn.Linear(input_ch_views, W)
+        self.ca_fusion = nn.MultiheadAttention(embed_dim=W, num_heads=8, batch_first=True, **factory_kwargs)
+        self.norm1 = nn.LayerNorm(W)
+        self.dropout1 = nn.Dropout(0.1)
+
+        self.mamba_block = create_block(
+                    d_model=W,
+                    ssm_cfg={'expand': 1},
+                    norm_epsilon=norm_epsilon,
+                    rms_norm=rms_norm,
+                    residual_in_fp32=residual_in_fp32,
+                    fused_add_norm=fused_add_norm,
+                    layer_idx=0,
+                    **factory_kwargs,
+                )
+        
+        self.norm_alpha = (nn.LayerNorm if not rms_norm else RMSNorm)(
+            W, eps=norm_epsilon, **factory_kwargs
+        )
+        
+        if use_viewdirs:
+            # TODO: 处理不使用viewdirs的情况
+            self.alpha_linear = nn.Linear(W, 1)
+            self.rgb_linear = nn.Linear(W, 3)
+        else:
+            self.output_linear = nn.Linear(W, output_ch)
+        print(f'Congratulations! You are using Mamba **v3** model!')
+
+    def forward(self, x, inference_params=None):
+        """
+        args:
+            x: (bs, n_points, c)
+        """
+        input_pts, input_views = torch.split(x, [self.input_ch, self.input_ch_views], dim=-1)
+
+        # Cross Attention
+        q, kv = self.pts_embed(input_pts), self.view_embed(input_views)
+        feature_fused = self.ca_fusion(q, kv, kv, need_weights=False)[0]
+        feature_fused = self.dropout1(feature_fused) + q
+        h = self.norm1(feature_fused)
+
+        # Mamba with Norm
+        residual = None
+        h, residual = self.mamba_block(h, residual, inference_params=inference_params)
+        if not self.fused_add_norm:
+            residual = (h + residual) if residual is not None else h
+            h = self.norm_alpha(residual.to(dtype=self.norm_alpha.weight.dtype))
+        else:
+            # Set prenorm=False here since we don't need the residual
+            fused_add_norm_fn = rms_norm_fn if isinstance(self.norm_alpha, RMSNorm) else layer_norm_fn
+            h = fused_add_norm_fn(
+                h,
+                self.norm_alpha.weight,
+                self.norm_alpha.bias,
+                eps=self.norm_alpha.eps,
+                residual=residual,
+                prenorm=False,
+                residual_in_fp32=self.residual_in_fp32,
+            )
+        
+        if self.use_viewdirs:
+            alpha = self.alpha_linear(h)
+            rgb = self.rgb_linear(h)
+            outputs = torch.cat([rgb, alpha], -1)
+        else:
+            outputs = self.output_linear(h)
+
+        return outputs    
+
+    def load_weights_from_keras(self):
+        print('Not Implemented Yet')
+        return 
+
+
 # Ray helpers
 def get_rays(H, W, focal, c2w, device=torch.device('cpu')):
     i, j = torch.meshgrid(torch.linspace(0, W-1, W), torch.linspace(0, H-1, H))  # pytorch's meshgrid has indexing='ij'

@@ -43,7 +43,7 @@ def batchify(fn, chunk):
     return ret
 
 
-def run_network(inputs, viewdirs, fn, embed_fn, embeddirs_fn, netchunk=1024*64, use_mamba=False):
+def run_network(inputs, viewdirs, fn, embed_fn, embeddirs_fn, netchunk=1024*64, model_type=None):
     """Prepares inputs and applies network 'fn'.
     """
     inputs_flat = torch.reshape(inputs, [-1, inputs.shape[-1]])
@@ -55,7 +55,7 @@ def run_network(inputs, viewdirs, fn, embed_fn, embeddirs_fn, netchunk=1024*64, 
         embedded_dirs = embeddirs_fn(input_dirs_flat)
         embedded = torch.cat([embedded, embedded_dirs], -1)
 
-    if use_mamba:
+    if model_type:
         mamba_input = torch.reshape(embedded, list(inputs.shape[:-1]) + [embedded.shape[-1]])
         outputs = batchify(fn, netchunk)(mamba_input)
     else:
@@ -244,8 +244,15 @@ def create_nerf(args):
     output_ch = 5 if args.N_importance > 0 else 4
     skips = [4]
     if args.alpha_model_path is None:
-        if args.use_mamba:
+        if args.model_type == 'v1':
             model = NeRF_mamba(D=args.netdepth, W=args.netwidth,
+                        input_ch=input_ch, output_ch=output_ch,
+                        input_ch_views=input_ch_views, use_viewdirs=args.use_viewdirs,
+                        device=device,
+                        ).to(device)
+        # TODO: add model type v2
+        elif args.model_type == 'v3':
+            model = NeRF_CA_mamba(D=args.netdepth, W=args.netwidth,
                         input_ch=input_ch, output_ch=output_ch,
                         input_ch_views=input_ch_views, use_viewdirs=args.use_viewdirs,
                         device=device,
@@ -275,8 +282,14 @@ def create_nerf(args):
     model_fine = None
     if args.N_importance > 0:
         if args.alpha_model_path is None:
-            if args.use_mamba:
+            if args.model_type == 'v1':
                 model_fine = NeRF_mamba(D=args.netdepth_fine, W=args.netwidth_fine,
+                            input_ch=input_ch, output_ch=output_ch,
+                            input_ch_views=input_ch_views, use_viewdirs=args.use_viewdirs,
+                            device=device,
+                            ).to(device)
+            elif args.model_type == 'v3':
+                model_fine = NeRF_CA_mamba(D=args.netdepth_fine, W=args.netwidth_fine,
                             input_ch=input_ch, output_ch=output_ch,
                             input_ch_views=input_ch_views, use_viewdirs=args.use_viewdirs,
                             device=device,
@@ -296,7 +309,7 @@ def create_nerf(args):
                                                                 embed_fn=embed_fn,
                                                                 embeddirs_fn=embeddirs_fn,
                                                                 netchunk=args.netchunk,
-                                                                use_mamba=args.use_mamba)
+                                                                model_type=args.model_type)
     # ==============================渲染核心函数==============================
 
     # Create optimizer
@@ -651,7 +664,7 @@ def config_parser():
     parser.add_argument("--depth_anything", type=str, default=None)
     parser.add_argument("--dense_depth", action='store_true',
                     help='whether to use dense depth supervision')
-    parser.add_argument("--use_mamba", action='store_true',)
+    parser.add_argument("--model_type", type=str, default=None)
     parser.add_argument("--use_wandb", action='store_true',)
     return parser
 
