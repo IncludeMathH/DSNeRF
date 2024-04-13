@@ -7,8 +7,8 @@ def check_dir(dir):
         os.makedirs(dir)
 
 # 找到所有以'Loss'结尾的文件夹
-dirs = [d for d in glob.glob('logs/baseline/*mamba_v1') if os.path.isdir(d)]
-output_dir = 'logs/baseline_mamba_v1/generated_views'
+dirs = [d for d in glob.glob('logs/baseline/*expand4') if os.path.isdir(d)]
+output_dir = 'logs/baseline_mamba_v1_expand4/generated_views'
 check_dir(output_dir)
 
 for dir in dirs:

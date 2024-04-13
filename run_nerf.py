@@ -257,6 +257,12 @@ def create_nerf(args):
                         input_ch_views=input_ch_views, use_viewdirs=args.use_viewdirs,
                         device=device,
                         ).to(device)
+        elif args.model_type == 'v4':
+            model = NeRF_Vim(D=args.netdepth, W=args.netwidth,
+                        input_ch=input_ch, output_ch=output_ch,
+                        input_ch_views=input_ch_views, use_viewdirs=args.use_viewdirs,
+                        device=device,
+                        ).to(device)
         else:
             model = NeRF(D=args.netdepth, W=args.netwidth,
                         input_ch=input_ch, output_ch=output_ch, skips=skips,
@@ -290,6 +296,12 @@ def create_nerf(args):
                             ).to(device)
             elif args.model_type == 'v3':
                 model_fine = NeRF_CA_mamba(D=args.netdepth_fine, W=args.netwidth_fine,
+                            input_ch=input_ch, output_ch=output_ch,
+                            input_ch_views=input_ch_views, use_viewdirs=args.use_viewdirs,
+                            device=device,
+                            ).to(device)
+            elif args.model_type == 'v4':
+                model_fine = NeRF_Vim(D=args.netdepth_fine, W=args.netwidth_fine,
                             input_ch=input_ch, output_ch=output_ch,
                             input_ch_views=input_ch_views, use_viewdirs=args.use_viewdirs,
                             device=device,
