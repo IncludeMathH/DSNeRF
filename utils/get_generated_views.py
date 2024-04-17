@@ -7,13 +7,13 @@ def check_dir(dir):
         os.makedirs(dir)
 
 # 找到所有以'Loss'结尾的文件夹
-dirs = [d for d in glob.glob('logs/baseline/*expand4') if os.path.isdir(d)]
-output_dir = 'logs/baseline_mamba_v1_expand4/generated_views'
+dirs = [d for d in glob.glob('logs/baseline/*woFine') if os.path.isdir(d)]
+output_dir = 'logs/baseline_mamba_v4_woFine_generated_views'
 check_dir(output_dir)
 
 for dir in dirs:
     # 找到最新的.png文件
-    list_of_files = glob.glob(f'{dir}/testset_200000/*.png')
+    list_of_files = glob.glob(f'{dir}/testset_100000/*.png')
 
     # 复制文件到新的位置
     for file in list_of_files:

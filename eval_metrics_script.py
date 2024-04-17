@@ -14,8 +14,8 @@ import eval_utils
 
 FLAGS = flags.FLAGS
 
-flags.DEFINE_string('generated_views', 'logs/baseline_mamba_v1_expand4/generated_views', 'Directory to generated views.')
-flags.DEFINE_string('ground_truth_views', 'data/split_allview_new_2view_test_images', 'Directory to ground truth views.')
+flags.DEFINE_string('generated_views', 'logs/NeRF_Mamba/generated_views', 'Directory to generated views.')
+flags.DEFINE_string('ground_truth_views', 'data/test_images/split_allview_new', 'Directory to ground truth views.')
 
 def main(argv):
   if len(argv) > 1:
