@@ -8,3 +8,5 @@ tensorboard>=1.15.0
 tqdm
 opencv-python
 scikit-image==0.20.0
+wandb
+tensorflow

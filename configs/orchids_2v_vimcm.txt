@@ -1,0 +1,17 @@
+expname = orchids_2v_vimcm
+basedir = ./logs/vimcm
+datadir = ./data/split_allview_new/orchids_2view
+dataset_type = colmap_llff
+factor = 4
+llffhold = 8
+N_rand = 4096
+N_samples = 64
+N_importance = 128
+use_viewdirs = True
+raw_noise_std = 1e0
+no_ndc = True
+colmap_depth = False
+i_testset = 50000
+i_video = 50000
+N_iters = 50000
+model_type = VimCm
