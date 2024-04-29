@@ -860,12 +860,6 @@ class NeRF_mamba(nn.Module):
         self.fused_add_norm = fused_add_norm
 
         self.pts_embed = nn.Linear(input_ch, W)
-        # TODO: release this comment
-        drop_path_rate = 0.1
-        depth = 1
-        dpr = [x.item() for x in torch.linspace(0, drop_path_rate, depth)]  # stochastic depth decay rule
-        # import ipdb;ipdb.set_trace()
-        inter_dpr = [0.0] + dpr
         self.pts_linears = nn.ModuleList(
             [
                 create_block(
@@ -876,11 +870,6 @@ class NeRF_mamba(nn.Module):
                     residual_in_fp32=residual_in_fp32,
                     fused_add_norm=fused_add_norm,
                     layer_idx=i,
-                    if_bimamba=False,       # if True, use 'v1'
-                    bimamba_type='v2',
-                    drop_path=inter_dpr[i],
-                    if_devide_out=True,
-                    init_layer_scale=None,
                     **factory_kwargs,
                 )
                 for i in range(1)
@@ -894,18 +883,13 @@ class NeRF_mamba(nn.Module):
         self.views_linears = nn.ModuleList(
             [
                 create_block(
-                    d_model=W,
+                    d_model=input_ch_views + W,
                     ssm_cfg={'expand': 1},
                     norm_epsilon=norm_epsilon,
                     rms_norm=rms_norm,
                     residual_in_fp32=residual_in_fp32,
                     fused_add_norm=fused_add_norm,
                     layer_idx=i,
-                    if_bimamba=False,       # if True, use 'v1'
-                    bimamba_type='v2',
-                    drop_path=inter_dpr[i],
-                    if_devide_out=True,
-                    init_layer_scale=None,
                     **factory_kwargs,
                 )
                 for i in range(1)
@@ -920,7 +904,7 @@ class NeRF_mamba(nn.Module):
             self.rgb_linear = nn.Linear(input_ch_views + W, 3)
         else:
             self.output_linear = nn.Linear(W, output_ch)
-        print(f'Congratulations! You are using Mamba model!')
+        print(f'Congratulations! You are using NeRF + Mamba model!')
 
     def forward(self, x, inference_params=None):
         """
@@ -1093,6 +1077,12 @@ class NeRF_Vim(nn.Module):
         self.fused_add_norm = fused_add_norm
 
         self.pts_embed = nn.Linear(input_ch, W)
+        # TODO: release this comment
+        drop_path_rate = 0.1
+        depth = 1
+        dpr = [x.item() for x in torch.linspace(0, drop_path_rate, depth)]  # stochastic depth decay rule
+        # import ipdb;ipdb.set_trace()
+        inter_dpr = [0.0] + dpr
         self.pts_linears = nn.ModuleList(
             [
                 create_block(
@@ -1103,6 +1093,11 @@ class NeRF_Vim(nn.Module):
                     residual_in_fp32=residual_in_fp32,
                     fused_add_norm=fused_add_norm,
                     layer_idx=i,
+                    if_bimamba=False,       # if True, use 'v1'
+                    bimamba_type='v2',
+                    drop_path=inter_dpr[i],
+                    if_devide_out=True,
+                    init_layer_scale=None,
                     **factory_kwargs,
                 )
                 for i in range(1)
@@ -1116,13 +1111,18 @@ class NeRF_Vim(nn.Module):
         self.views_linears = nn.ModuleList(
             [
                 create_block(
-                    d_model=input_ch_views + W,
+                    d_model=W + input_ch_views,
                     ssm_cfg={'expand': 1},
                     norm_epsilon=norm_epsilon,
                     rms_norm=rms_norm,
                     residual_in_fp32=residual_in_fp32,
                     fused_add_norm=fused_add_norm,
                     layer_idx=i,
+                    if_bimamba=False,       # if True, use 'v1'
+                    bimamba_type='v2',
+                    drop_path=inter_dpr[i],
+                    if_devide_out=True,
+                    init_layer_scale=None,
                     **factory_kwargs,
                 )
                 for i in range(1)
@@ -1137,7 +1137,7 @@ class NeRF_Vim(nn.Module):
             self.rgb_linear = nn.Linear(input_ch_views + W, 3)
         else:
             self.output_linear = nn.Linear(W, output_ch)
-        print(f'Congratulations! You are using Mamba **v4** model!')
+        print(f'Congratulations! You are using **Mamba + ViM** model! bimamba_type = v2')
 
     def forward(self, x, inference_params=None):
         """
@@ -1221,6 +1221,13 @@ class NeRF_VimCm(nn.Module):
         self.fused_add_norm = fused_add_norm
 
         self.pts_embed = nn.Linear(input_ch, W)
+
+        # TODO: release this comment
+        drop_path_rate = 0.1
+        depth = 1
+        dpr = [x.item() for x in torch.linspace(0, drop_path_rate, depth)]  # stochastic depth decay rule
+        # import ipdb;ipdb.set_trace()
+        inter_dpr = [0.0] + dpr
         self.pts_linears = nn.ModuleList(
             [
                 create_block(
@@ -1231,6 +1238,11 @@ class NeRF_VimCm(nn.Module):
                     residual_in_fp32=residual_in_fp32,
                     fused_add_norm=fused_add_norm,
                     layer_idx=i,
+                    if_bimamba=False,       # if True, use 'v1'
+                    bimamba_type='v2',
+                    drop_path=inter_dpr[i],
+                    if_devide_out=True,
+                    init_layer_scale=None,
                     **factory_kwargs,
                 )
                 for i in range(1)
@@ -1253,6 +1265,11 @@ class NeRF_VimCm(nn.Module):
                     fused_add_norm=fused_add_norm,
                     layer_idx=i,
                     mode='cross',
+                    if_bimamba=False,       # if True, use 'v1'
+                    bimamba_type='v2',
+                    drop_path=inter_dpr[i],
+                    if_devide_out=True,
+                    init_layer_scale=None,
                     **factory_kwargs,
                 )
                 for i in range(1)
@@ -1267,7 +1284,7 @@ class NeRF_VimCm(nn.Module):
             self.rgb_linear = nn.Linear(W, 3)
         else:
             self.output_linear = nn.Linear(W, output_ch)
-        print(f'Congratulations! You are using **NeRF_VimCm** model!')
+        print(f'Congratulations! You are using **NeRF_VimCm** model! bimamba type = v2')
 
     def forward(self, x, inference_params=None):
         """
@@ -1322,6 +1339,107 @@ class NeRF_VimCm(nn.Module):
                     residual_in_fp32=self.residual_in_fp32,
                 )
 
+            rgb = self.rgb_linear(h)
+            outputs = torch.cat([rgb, alpha], -1)
+        else:
+            outputs = self.output_linear(h)
+
+        return outputs    
+
+    def load_weights_from_keras(self):
+        print('Not Implemented Yet')
+        return 
+
+class NeRF_CA_Vim(nn.Module):
+    def __init__(self, D=8, W=256, input_ch=3, input_ch_views=3, output_ch=4, use_viewdirs=False, ssm_cfg=None, norm_epsilon=1e-5, rms_norm=False, residual_in_fp32=False, 
+                 fused_add_norm=False, device=None, dtype=None):
+        """ 
+        """
+        factory_kwargs = {"device": device, "dtype": dtype}
+        super(NeRF_CA_Vim, self).__init__()
+        self.D = D
+        self.W = W
+        self.input_ch = input_ch
+        self.input_ch_views = input_ch_views
+        self.use_viewdirs = use_viewdirs
+
+        self.residual_in_fp32 = residual_in_fp32
+        self.fused_add_norm = fused_add_norm
+
+        self.pts_embed = nn.Linear(input_ch, W)
+        self.view_embed = nn.Linear(input_ch_views, W)
+        self.ca_fusion = nn.MultiheadAttention(embed_dim=W, num_heads=8, batch_first=True, **factory_kwargs)
+        self.norm1 = nn.LayerNorm(W)
+        self.dropout1 = nn.Dropout(0.1)
+        # =======================For Vision Mamba ===========================
+        # TODO: release this comment
+        drop_path_rate = 0.1
+        depth = 1
+        dpr = [x.item() for x in torch.linspace(0, drop_path_rate, depth)]  # stochastic depth decay rule
+        # import ipdb;ipdb.set_trace()
+        inter_dpr = [0.0] + dpr
+        self.mamba_block = create_block(
+                    d_model=W,
+                    ssm_cfg={'expand': 1},
+                    norm_epsilon=norm_epsilon,
+                    rms_norm=rms_norm,
+                    residual_in_fp32=residual_in_fp32,
+                    fused_add_norm=fused_add_norm,
+                    layer_idx=0,
+                    if_bimamba=False,       # if True, use 'v1'
+                    bimamba_type='v2',
+                    drop_path=inter_dpr[0],
+                    if_devide_out=True,
+                    init_layer_scale=None,
+                    **factory_kwargs,
+                )
+        
+        self.norm_alpha = (nn.LayerNorm if not rms_norm else RMSNorm)(
+            W, eps=norm_epsilon, **factory_kwargs
+        )
+        
+        if use_viewdirs:
+            # TODO: 处理不使用viewdirs的情况
+            self.alpha_linear = nn.Linear(W, 1)
+            self.rgb_linear = nn.Linear(W, 3)
+        else:
+            self.output_linear = nn.Linear(W, output_ch)
+        print(f'Congratulations! You are using Mamba **Cross Attention + ViM** model!')
+
+    def forward(self, x, inference_params=None):
+        """
+        args:
+            x: (bs, n_points, c)
+        """
+        input_pts, input_views = torch.split(x, [self.input_ch, self.input_ch_views], dim=-1)
+
+        # Cross Attention
+        q, kv = self.pts_embed(input_pts), self.view_embed(input_views)
+        feature_fused = self.ca_fusion(q, kv, kv, need_weights=False)[0]
+        feature_fused = self.dropout1(feature_fused) + q
+        h = self.norm1(feature_fused)
+
+        # Mamba with Norm
+        residual = None
+        h, residual = self.mamba_block(h, residual, inference_params=inference_params)
+        if not self.fused_add_norm:
+            residual = (h + residual) if residual is not None else h
+            h = self.norm_alpha(residual.to(dtype=self.norm_alpha.weight.dtype))
+        else:
+            # Set prenorm=False here since we don't need the residual
+            fused_add_norm_fn = rms_norm_fn if isinstance(self.norm_alpha, RMSNorm) else layer_norm_fn
+            h = fused_add_norm_fn(
+                h,
+                self.norm_alpha.weight,
+                self.norm_alpha.bias,
+                eps=self.norm_alpha.eps,
+                residual=residual,
+                prenorm=False,
+                residual_in_fp32=self.residual_in_fp32,
+            )
+        
+        if self.use_viewdirs:
+            alpha = self.alpha_linear(h)
             rgb = self.rgb_linear(h)
             outputs = torch.cat([rgb, alpha], -1)
         else:

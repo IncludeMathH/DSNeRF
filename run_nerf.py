@@ -259,7 +259,7 @@ def create_nerf(args):
                         input_ch_views=input_ch_views, use_viewdirs=args.use_viewdirs,
                         device=device,
                         ).to(device)
-        elif args.model_type == 'v4':
+        elif args.model_type == 'Vim':
             model = NeRF_Vim(D=args.netdepth, W=args.netwidth,
                         input_ch=input_ch, output_ch=output_ch,
                         input_ch_views=input_ch_views, use_viewdirs=args.use_viewdirs,
@@ -271,7 +271,14 @@ def create_nerf(args):
                         input_ch_views=input_ch_views, use_viewdirs=args.use_viewdirs,
                         device=device,
                         ).to(device)
+        elif args.model_type == 'CA_Vim':
+            model = NeRF_CA_Vim(D=args.netdepth, W=args.netwidth,
+                        input_ch=input_ch, output_ch=output_ch,
+                        input_ch_views=input_ch_views, use_viewdirs=args.use_viewdirs,
+                        device=device,
+                        ).to(device)
         else:
+            print(f'you are using original NeRF now')
             model = NeRF(D=args.netdepth, W=args.netwidth,
                         input_ch=input_ch, output_ch=output_ch, skips=skips,
                         input_ch_views=input_ch_views, use_viewdirs=args.use_viewdirs).to(device)
@@ -308,7 +315,7 @@ def create_nerf(args):
                             input_ch_views=input_ch_views, use_viewdirs=args.use_viewdirs,
                             device=device,
                             ).to(device)
-            elif args.model_type == 'v4':
+            elif args.model_type == 'Vim':
                 model_fine = NeRF_Vim(D=args.netdepth_fine, W=args.netwidth_fine,
                             input_ch=input_ch, output_ch=output_ch,
                             input_ch_views=input_ch_views, use_viewdirs=args.use_viewdirs,
@@ -320,7 +327,14 @@ def create_nerf(args):
                             input_ch_views=input_ch_views, use_viewdirs=args.use_viewdirs,
                             device=device,
                             ).to(device)
+            elif args.model_type == 'CA_Vim':
+                model_fine = NeRF_CA_Vim(D=args.netdepth, W=args.netwidth,
+                            input_ch=input_ch, output_ch=output_ch,
+                            input_ch_views=input_ch_views, use_viewdirs=args.use_viewdirs,
+                            device=device,
+                            ).to(device)
             else:
+                print(f'you are using original NeRF now')
                 model_fine = NeRF(D=args.netdepth_fine, W=args.netwidth_fine,
                                 input_ch=input_ch, output_ch=output_ch, skips=skips,
                                 input_ch_views=input_ch_views, use_viewdirs=args.use_viewdirs).to(device)
@@ -343,7 +357,7 @@ def create_nerf(args):
 
     start = 0
     basedir = args.basedir
-    expname = args.expname
+    expname = args.expname if args.expname is not None else args.datadir.split('/')[-1] + '_' + args.model_type
 
     ##########################
 
@@ -541,7 +555,7 @@ def config_parser():
     parser.add_argument('--config', is_config_file=True, 
                         help='config file path')
     parser.add_argument("--device", type=str, default=None, help='Device used for train and rendering')
-    parser.add_argument("--expname", type=str, 
+    parser.add_argument("--expname", type=str, default=None,
                         help='experiment name')
     parser.add_argument("--basedir", type=str, default='./logs/', 
                         help='where to store ckpts and logs')
@@ -644,7 +658,7 @@ def config_parser():
                         help='frequency of console printout and metric loggin')
     parser.add_argument("--i_img",     type=int, default=500, 
                         help='frequency of tensorboard image logging')
-    parser.add_argument("--i_weights", type=int, default=10000, 
+    parser.add_argument("--i_weights", type=int, default=5000, 
                         help='frequency of weight ckpt saving')
     parser.add_argument("--i_testset", type=int, default=50000, 
                         help='frequency of testset saving')
@@ -808,7 +822,7 @@ def train():
 
     # Create log dir and copy the config file
     basedir = args.basedir
-    expname = args.expname
+    expname = args.expname if args.expname is not None else args.datadir.split('/')[-1] + '_' + args.model_type
     os.makedirs(os.path.join(basedir, expname), exist_ok=True)
     f = os.path.join(basedir, expname, 'args.txt')
     with open(f, 'w') as file:
@@ -1148,7 +1162,7 @@ def train():
             #     render_kwargs_test['c2w_staticcam'] = None
             #     imageio.mimwrite(moviebase + 'rgb_still.mp4', to8b(rgbs_still), fps=30, quality=8)
 
-        if i%args.i_testset==0 and i > 0 and len(i_test) > 0:
+        if args.i_testset > 0 and i%args.i_testset==0 and i > 0 and len(i_test) > 0:
             testsavedir = os.path.join(basedir, expname, 'testset_{:06d}'.format(i))
             os.makedirs(testsavedir, exist_ok=True)
             print('test poses shape', poses[i_test].shape)
