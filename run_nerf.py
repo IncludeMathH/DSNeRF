@@ -706,6 +706,8 @@ def config_parser():
                     help='whether to use dense depth supervision')
     parser.add_argument("--model_type", type=str, default=None)
     parser.add_argument("--use_wandb", action='store_true',)
+    parser.add_argument("--use_tf", action='store_true', 
+                        help='use tensorboard for logging')
     return parser
 
 
@@ -973,11 +975,12 @@ def train():
     # writer = SummaryWriter(os.path.join(basedir, 'summaries', expname))
     
     start = start + 1
-    # ====================for tensorboard=======================
-    disc_log_dir = os.path.join(basedir, expname, 'tf_logs')
-    os.makedirs(disc_log_dir, exist_ok=True)
-    disc_summary_writer = tf.summary.create_file_writer(disc_log_dir)
-    # ==========================================================
+    if args.use_tf:
+        # ====================for tensorboard=======================
+        disc_log_dir = os.path.join(basedir, expname, 'tf_logs')
+        os.makedirs(disc_log_dir, exist_ok=True)
+        disc_summary_writer = tf.summary.create_file_writer(disc_log_dir)
+        # ==========================================================
 
     for i in trange(start, N_iters):
         time0 = time.time()
@@ -1177,7 +1180,6 @@ def train():
 
     
         if i%args.i_print==0:
-            tqdm.write(f"[TRAIN] Iter: {i} Loss: {loss.item()}  PSNR: {psnr.item()}")
             if args.use_wandb:
                 info = {"loss": loss.item(), "psnr": psnr.item()}
                 if args.depth_loss:
@@ -1194,9 +1196,11 @@ def train():
                     info['sigma_loss'] = sigma_loss.item()
                 wandb.log(info, step=i)
             
-            with disc_summary_writer.as_default():
-                tf.summary.scalar('loss', loss.item(), step=i)
-                tf.summary.scalar('psnr', psnr.item(), step=i)
+            if args.use_tf:
+                tqdm.write(f"[TRAIN] Iter: {i} Loss: {loss.item()}  PSNR: {psnr.item()}")
+                with disc_summary_writer.as_default():
+                    tf.summary.scalar('loss', loss.item(), step=i)
+                    tf.summary.scalar('psnr', psnr.item(), step=i)
                     
         global_step += 1
 
