@@ -41,3 +41,22 @@ git checkout v1.2.0.post1
     cc_flag.append("arch=compute_60,code=sm_60")
 MAMBA_FORCE_BUILD=TRUE pip install .
 ```
+
+# For Vision Mamba
+```powershell
+git clone https://github.com/Dao-AILab/causal-conv1d.git
+cd causal_conv1d
+git checkout v1.1.0
+# edit setup.py to add the lines here when using Titan-X or P100 GPU:
+    cc_flag.append("-gencode")
+    cc_flag.append("arch=compute_60,code=sm_60")
+CAUSAL_CONV1D_FORCE_BUILD=TRUE pip install .
+
+cd mamba-1p1p1
+# modifi setup.py in line 274:
+"causal_conv1d>=1.1.0" -> "causal_conv1d==1.1.0"
+# edit setup.py to add the lines here when using Titan-X or P100 GPU:
+    cc_flag.append("-gencode")
+    cc_flag.append("arch=compute_60,code=sm_60")
+pip install -e mamba-1p1p1
+```

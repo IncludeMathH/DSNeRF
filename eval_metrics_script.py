@@ -14,7 +14,7 @@ import eval_utils
 
 FLAGS = flags.FLAGS
 
-flags.DEFINE_string('generated_views', 'logs/vimcm_generated_views_5v', 'Directory to generated views.')
+flags.DEFINE_string('generated_views', 'logs/vim_generated_views_5v', 'Directory to generated views.')
 flags.DEFINE_string('ground_truth_views', 'data/test_images/split_allview_new', 'Directory to ground truth views.')
 
 def main(argv):

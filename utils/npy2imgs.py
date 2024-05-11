@@ -1,7 +1,7 @@
 import numpy as np
 import cv2, os, glob
 
-num_view = '10'
+num_view = '5'
 for folder in glob.glob(f'data/split_allview_new/*{num_view}view'):
     for split in ['train', 'test']:
         images = np.load(f'{folder}/{split}_images.npy')
