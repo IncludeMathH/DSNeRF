@@ -7,6 +7,6 @@ fi
 modeltype="VimCm"
 device=$1
 
-python run_nerf.py --config configs/orchids_2v_vimcm.txt --datadir ./data/split_allview_new/orchids_2view --expname orchids_2v_${modeltype} --model_type ${modeltype} --device ${device} --use_wandb
+# python run_nerf.py --config configs/orchids_2v_vimcm.txt --datadir ./data/split_allview_new/orchids_2view --expname orchids_2v_${modeltype} --model_type ${modeltype} --device ${device} --use_wandb
 # python run_nerf.py --config configs/orchids_2v_vimcm.txt --datadir ./data/split_allview_new/orchids_5view --expname orchids_5v_${modeltype} --model_type ${modeltype} --device ${device} --use_wandb
-# python run_nerf.py --config configs/orchids_2v_vimcm.txt --datadir ./data/split_allview_new/orchids_10view --expname orchids_10v_${modeltype} --model_type ${modeltype} --device ${device} --use_wandb
+python run_nerf.py --config configs/orchids_2v_vimcm.txt --datadir ./data/split_allview_new/orchids_10view --expname orchids_10v_${modeltype} --model_type ${modeltype} --device ${device} --use_wandb
